@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and local files
+*.log
+npm-debug.log*
+.DS_Store
+.vscode/
+.idea/
+*.bak
+
+# Local safety backups and generated artifacts
+backups/
+*.before-*
+*.before-checkout-security-*
