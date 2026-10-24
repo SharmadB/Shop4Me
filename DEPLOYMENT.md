@@ -1,57 +1,135 @@
-# Shop4Me — Deployment Status and Notes
+# Shop4Me — AWS Deployment Notes
 
-## Current Status
+## Deployment Overview
 
-Shop4Me has been run and tested in a local development environment.
+Shop4Me has been deployed to AWS EC2 in the `ap-south-1` region for demonstration and learning purposes.
 
-Verified during local development:
-- The backend services start using `node start-all.js`.
-- The API gateway health endpoint responds locally.
-- Product data is accessible through the gateway.
-- Direct requests to tested protected internal-service endpoints are rejected.
-- Both React frontends complete their Vite production builds.
-- Product image URLs have been checked for HTTP accessibility.
+- **Storefront:** http://13.201.186.173/
+- **Admin dashboard:** http://13.201.186.173/admin/
+- **Entry point:** Nginx on the gateway EC2 instance
+- **Process management:** PM2
+- **Application communication:** HTTP between the gateway and backend services
 
-These checks do not establish production readiness.
+This is a verified demo deployment, not a production-ready e-commerce environment.
 
-## Not Yet Verified
+## Deployment Architecture
 
-The following should not be considered deployed or production-ready without further implementation and testing:
+The gateway EC2 instance hosts Nginx, the API gateway, and the local payment and notification adapters. Separate EC2 instances host the catalog, cart, and order services.
 
-- AWS EC2, Lambda, S3, or CloudFront deployment
-- Public production domains and HTTPS configuration
-- Production database provisioning and access controls
-- Durable order and cart persistence across restarts
-- Integration with a real payment provider
-- Delivery of real email or notification messages
-- Production monitoring, backups, scaling, and recovery
-- A complete production security review
+| Component | Hosting | Port |
+|---|---|---:|
+| Nginx | Gateway EC2 | 80 |
+| API Gateway | Gateway EC2 | 5000 |
+| Payment adapter | Gateway EC2 | 5004 |
+| Notification adapter | Gateway EC2 | 5005 |
+| Catalog service | Separate EC2 | 5001 |
+| Cart service | Separate EC2 | 5002 |
+| Order service | Separate EC2 | 5003 |
 
-Payment and notification currently use local HTTP adapters around handler code. Do not describe them as deployed AWS Lambda functions unless deployment is completed and verified.
+Nginx serves the storefront and admin dashboard static files and forwards API requests to the gateway. Backend services communicate over private EC2 network addresses where configured.
 
-## Local Startup
+The payment and notification adapters run as local Node.js HTTP processes. Their presence does not establish that AWS Lambda or Amazon SNS is being used for the corresponding operations.
 
-1. Install dependencies in each backend service and frontend directory as described in the root README.
-2. Configure the required environment variables in local `.env` files.
-3. Start the backend with `node start-all.js` from the repository root.
-4. Start the storefront with `npm run dev` from `frontend/storefront`.
-5. Start the admin dashboard with `npm run dev` from `frontend/admin-dashboard`.
+## Deployment Configuration
 
-Local URLs:
-- Storefront: http://localhost:5173
-- Admin dashboard: http://localhost:5174
-- API gateway: http://localhost:5000
+### Nginx
 
-## Before Any Cloud Deployment
+The Nginx site configuration is located at:
 
-1. Choose and document the target architecture and AWS region.
-2. Create least-privilege IAM roles and policies.
-3. Store secrets in an appropriate secrets-management solution; never embed them in source code or shell history.
-4. Configure network access so internal services are not publicly exposed.
-5. Confirm database persistence, backups, and recovery procedures.
-6. Integrate and test a real payment provider before accepting real payments.
-7. Configure HTTPS, CORS, logging, monitoring, and alerting.
-8. Build and test deployment automation in a non-production environment.
-9. Validate costs and clean up cloud resources when they are no longer needed.
+```text
+/etc/nginx/sites-available/shop4me
+```
 
-No cloud resources are created by this document. Do not run old deployment commands from previous versions of this file.
+The configuration serves the frontend assets and routes `/api/` and `/health` requests to the API gateway.
+
+### PM2
+
+PM2 manages the Node.js services. The deployment was checked with `pm2 status`, and the relevant processes were online during verification.
+
+Example operational commands:
+
+```bash
+pm2 status
+pm2 logs shop4me-gateway --lines 50
+pm2 logs shop4me-catalog --lines 50
+pm2 logs shop4me-cart --lines 50
+pm2 logs shop4me-order --lines 50
+```
+
+Use the appropriate instance and process name when checking logs. Avoid publishing logs that contain tokens, credentials, or customer data.
+
+### Network Access
+
+The gateway security group allows HTTP access for the public demo and uses security-group-based rules for required backend communication.
+
+Backend service ports should remain private and restricted to the services that need them. SSH access should be limited to the administrator's current public IP or another controlled access method.
+
+Do not add broad public inbound rules for backend service ports.
+
+## Verification Performed
+
+The following checks were completed during the demo deployment:
+
+- Storefront and admin dashboard opened through the public gateway IP.
+- Nginx served the frontend assets and proxied application API requests.
+- Relevant Node.js services were online under PM2 at the time of inspection.
+- Product listings were available through the application.
+- Cart and checkout interactions completed successfully.
+- Checkout returned a transaction reference and displayed a paid status.
+- The created order appeared in order history with a `PROCESSING` status.
+- Payment and notification adapter health endpoints responded after private network access was configured.
+- Both frontend production builds completed successfully.
+
+These results establish that the demo workflow functioned during testing. They do not prove production reliability, real payment settlement, or durable data storage.
+
+## Known Limitations
+
+### Payment Processing
+
+Payment is simulated by the local payment adapter. No real payment gateway or financial transaction has been verified. The displayed paid status and transaction reference are application-demo results only.
+
+### Data Persistence
+
+The catalog service was observed running with its in-memory fallback because a MongoDB connection was not active. Do not assume catalog, cart, or order data will survive process restarts without checking the relevant service implementation and persistence configuration.
+
+### Notifications
+
+The notification adapter runs as a local HTTP process on the gateway host. Actual Amazon SNS publishing and email delivery have not been independently verified.
+
+### HTTPS and Domain
+
+The demo is accessed over HTTP using a public IP address. HTTPS, a custom domain, and a CloudFront distribution are not part of the verified deployment.
+
+### Production Operations
+
+High availability, automated backups, disaster recovery, comprehensive monitoring and alerting, and a full security review have not been established.
+
+Do not use this deployment to process real payments or store sensitive customer information.
+
+## Host Bootstrap Scripts
+
+The repository includes:
+
+- `.deploy/bootstrap-gateway.sh`
+- `.deploy/bootstrap-backend.sh`
+
+These scripts install base packages, Node.js, and PM2 and create the application directory. They are host-bootstrap helpers, not a complete automated deployment pipeline. They do not, by themselves, build, transfer, configure, and deploy the entire application.
+
+## Local Development
+
+For local installation and startup instructions, see [README.md](README.md).
+
+## Before Production Use
+
+Before treating this application as production-ready:
+
+1. Integrate and verify a real payment provider.
+2. Configure and test durable persistence, backups, and recovery.
+3. Enable HTTPS and review cookie, CORS, and authentication settings.
+4. Review IAM permissions, secrets handling, and security-group rules.
+5. Verify authorization, input validation, and internal-service authentication.
+6. Configure monitoring, alerting, log retention, and incident response.
+7. Test deployment, restart, and recovery procedures.
+8. Review expected AWS costs and remove resources that are no longer needed.
+
+This document describes the demo configuration and verification results. It does not provision or modify AWS resources.

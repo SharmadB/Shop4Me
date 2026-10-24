@@ -1,22 +1,28 @@
 # Shop4Me — Microservices E-Commerce Platform
 
-Shop4Me is a full-stack e-commerce demonstration built with React, Node.js, Express, and a microservices-style backend. It includes a customer storefront, an admin dashboard, an API gateway, and separate catalog, cart, order, payment, and notification services.
+Shop4Me is a full-stack e-commerce demonstration built with React, Node.js, and Express. It includes a customer storefront, an admin dashboard, an API gateway, and separate catalog, cart, order, payment, and notification services.
 
-The project is intended for hands-on learning, local testing, and demonstrating application architecture and service-to-service communication.
+The project has been deployed to AWS EC2 and tested through its public web interface. It demonstrates frontend hosting, Nginx reverse proxying, service-to-service HTTP communication, and an end-to-end **simulated checkout workflow**.
 
-> **Project status:** Local development has been tested. Production deployment to AWS has not been verified or documented as complete.
+> **Project status:** AWS demo deployment verified. This is a learning/demo project, not a production-ready e-commerce platform.
+
+## Live Demo
+
+- **Customer storefront:** http://13.201.186.173/
+- **Admin dashboard:** http://13.201.186.173/admin/
+
+The demo currently uses HTTP and a public IP address. Do not submit real credentials or sensitive information.
 
 ## Features
 
-- Customer storefront with product listings and shopping-cart UI
-- Admin dashboard with product and order management interfaces
-- API gateway for routing requests to backend services
-- Separate services for catalog, cart, orders, payments, and notifications
-- Internal-service authentication using a shared secret
-- Local HTTP adapters for payment and notification handler code
+- Customer storefront with product listings and shopping cart
+- Checkout workflow and order history
+- Admin dashboard with administrative interfaces
+- API gateway for routing frontend requests
+- Separate catalog, cart, order, payment, and notification services
+- Shared-secret authentication for internal service requests where configured
 - React production builds using Vite
-
-Some operations use simulated or in-memory behavior. A successful UI interaction does not, by itself, establish production-grade payment processing, durable order storage, or deployment readiness.
+- AWS EC2 hosting with Nginx serving the frontend assets and proxying API requests
 
 ## Technology Stack
 
@@ -24,46 +30,86 @@ Some operations use simulated or in-memory behavior. A successful UI interaction
 - **Backend:** Node.js, Express
 - **Authentication:** JWT and role-based access controls where configured
 - **Service communication:** HTTP/REST
-- **Catalog data:** MongoDB/Mongoose integration is present in the backend
-- **Local tooling:** npm and Node.js
+- **Infrastructure:** AWS EC2, security groups, Nginx, PM2
+- **Database integration:** MongoDB/Mongoose support in the catalog service
+- **Development tooling:** npm, Node.js, Git
 
 ## Architecture
 
 ```text
-Customer Storefront          Admin Dashboard
-      :5173                       :5174
-         \                         /
-          \                       /
+Customer Browser
+       |
+       v
+AWS EC2 — Gateway Host
+  Nginx :80
+       |
+       +---- Storefront static files
+       |
+       +---- /admin/ --> Admin Dashboard files
+       |
+       +---- /api/ and /health
+                    |
+                    v
              API Gateway :5000
                     |
-      +-------------+-------------+
-      |             |             |
-   Catalog         Cart          Order
-   :5001           :5002         :5003
-                                  |
-                         +--------+--------+
-                         |                 |
-                      Payment          Notification
-                       :5004              :5005
-                    local adapter      local adapter
+        +-----------+-----------+
+        |           |           |
+        v           v           v
+     Catalog      Cart        Orders
+     :5001        :5002        :5003
+                                |
+                       +--------+--------+
+                       |                 |
+                       v                 v
+                    Payment         Notification
+                    :5004              :5005
+                 local HTTP         local HTTP
+                   adapter            adapter
+
+        Backend services hosted on AWS EC2
 ```
 
-The diagram represents the local service layout, not a verified production deployment topology.
+The diagram summarizes the application request flow. Payment and notification are local HTTP adapters hosted on EC2; they should not be interpreted as verified AWS Lambda or SNS integrations.
 
 ## Service Registry
 
-| Component | Local port | Purpose |
+| Component | Port | Purpose |
 |---|---:|---|
-| API Gateway | 5000 | Entry point for frontend API requests |
+| Nginx | 80 | Serves frontend assets and proxies requests |
+| API Gateway | 5000 | Routes frontend API requests |
 | Catalog Service | 5001 | Product and category operations |
 | Cart Service | 5002 | Shopping-cart operations |
 | Order Service | 5003 | Order workflow |
-| Payment Service | 5004 | Local payment adapter |
-| Notification Service | 5005 | Local notification adapter |
-| Storefront | 5173 | Customer-facing React app |
-| Admin Dashboard | 5174 | Administrative React app |
+| Payment Service | 5004 | Simulated payment adapter |
+| Notification Service | 5005 | Notification adapter |
 
-Frontend API requests should go through the gateway where the application is configured to do so. Direct access to protected internal-service endpoints is expected to be rejected.
+The backend ports are intended for service communication, not unrestricted public access.
+
+## Deployment Verification
+
+The following were verified during the AWS demo deployment:
+
+- The storefront and admin dashboard were accessible through the gateway EC2 public IP.
+- Nginx served the frontend assets and proxied API requests.
+- Backend services were running under PM2 at the time of the checks.
+- Catalog products could be retrieved through the application.
+- Cart and checkout interactions completed successfully.
+- A checkout generated a transaction reference and displayed a paid status.
+- The resulting order appeared in the order history with a `PROCESSING` status.
+- Internal payment and notification health endpoints responded after network access was configured between the relevant instances.
+- Both React frontends completed their Vite production builds.
+
+These checks verify a working demonstration flow, not production reliability or real payment settlement.
+
+## Important Limitations
+
+- **Simulated payment:** The payment adapter does not establish integration with a real payment provider or actual money movement.
+- **Persistence:** The catalog service was observed using its in-memory fallback because a MongoDB connection was not active. Do not assume catalog or order data will survive process restarts.
+- **Notifications:** The notification adapter is running locally on EC2. Actual SNS publishing or email delivery has not been independently verified.
+- **Transport security:** The public demo uses HTTP rather than HTTPS.
+- **Operations:** Production-grade monitoring, backups, high availability, disaster recovery, and a complete security review have not been established.
+
+Do not use this deployment to process real payments or store sensitive customer information.
 
 ## Repository Structure
 
@@ -72,6 +118,9 @@ Frontend API requests should go through the gateway where the application is con
 ├── README.md
 ├── DEPLOYMENT.md
 ├── .gitignore
+├── .deploy/
+│   ├── bootstrap-gateway.sh
+│   └── bootstrap-backend.sh
 ├── start-all.js
 ├── cleanup-ports.js
 ├── frontend/
@@ -86,16 +135,17 @@ Frontend API requests should go through the gateway where the application is con
     └── notification-service/
 ```
 
+The scripts under `.deploy/` bootstrap host packages and directories; they are not a complete automated application deployment pipeline.
+
 ## Local Development
 
 ### Prerequisites
 
 - Node.js and npm
-- A terminal
-- A browser
-- Any external database or service required by your chosen local configuration
+- A terminal and browser
+- Environment variables and any external services required by your local configuration
 
-Install dependencies in each backend service and each frontend directory, if they are not already installed:
+Install dependencies in each backend service and frontend directory:
 
 ```bash
 cd ~/shopitry/backend/gateway-service && npm install
@@ -108,47 +158,43 @@ cd ~/shopitry/frontend/storefront && npm install
 cd ~/shopitry/frontend/admin-dashboard && npm install
 ```
 
-Configure each service's required environment variables in its local `.env` file before starting the application. Use the variable names expected by that service's source code. Supply your own credentials and strong secrets; never commit `.env` files.
+Configure each service's required environment variables using its source code and the relevant `.env.example` files. Use your own credentials and strong secrets. Never commit real `.env` files.
 
 ### Start the backend
 
-In a terminal:
+From the repository root:
 
 ```bash
 cd ~/shopitry
 node start-all.js
 ```
 
-Keep this terminal running.
-
 ### Start the storefront
 
-In a second terminal:
+In another terminal:
 
 ```bash
 cd ~/shopitry/frontend/storefront
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5173.
 
 ### Start the admin dashboard
 
-In a third terminal:
+In another terminal:
 
 ```bash
 cd ~/shopitry/frontend/admin-dashboard
 npm run dev
 ```
 
-Open http://localhost:5174
+Open http://localhost:5174.
 
 Use credentials configured for your local environment. Do not rely on credentials copied from old documentation.
 
 ## Build Checks
 
-Run the frontend production builds:
-
 ```bash
 cd ~/shopitry/frontend/storefront
 npm run build
@@ -157,16 +203,16 @@ cd ~/shopitry/frontend/admin-dashboard
 npm run build
 ```
 
-These commands build the frontend assets. They do not deploy the application.
+These commands validate the frontend builds; they do not deploy the application.
 
 ## Security Notes
 
-- Keep `.env` files, database connection strings, JWT secrets, and internal-service secrets private.
-- Use unique, strong secrets for local and production environments.
-- Do not expose internal service ports publicly in a production environment.
-- The payment adapter is not evidence of integration with a real payment provider.
-- Review authentication, authorization, input validation, persistence, and deployment configuration before production use.
+- Keep environment files, database credentials, JWT secrets, and internal-service secrets private.
+- Use unique secrets for each environment.
+- Restrict backend service ports to the required hosts and security groups.
+- Avoid using the public HTTP demo for sensitive information.
+- Review authentication, authorization, input validation, persistence, logging, and deployment configuration before any production use.
 
-## Deployment Status
+## Deployment Documentation
 
-AWS hosting, public production URLs, and production infrastructure have not been verified as part of the documented local checks. See [DEPLOYMENT.md](DEPLOYMENT.md) for the current status and next steps.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the AWS demo deployment notes, verification results, and remaining operational limitations.

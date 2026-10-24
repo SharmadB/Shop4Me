@@ -23,3 +23,15 @@ npm-debug.log*
 backups/
 *.before-*
 *.before-checkout-security-*
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Terraform state and local variable files
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import './index.css';
 
-const API_GATEWAY = import.meta.env.VITE_API_GATEWAY || 'http://localhost:5000';
+const API_GATEWAY = import.meta.env.DEV ? 'http://localhost:5000' : '';
 
 export default function App() {
   // Auth state
